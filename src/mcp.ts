@@ -7,6 +7,7 @@ import {
   createToolRegistry,
   type ToolContext,
   type ToolDefinition,
+  type ToolEntry,
   type ToolResponse,
 } from "./tools";
 
@@ -140,13 +141,6 @@ async function callTool(
     return { ok: false, text: `Unknown tool: ${name}` };
   }
 
-  if (tool.requiresAuth && !context.authToken) {
-    return {
-      ok: false,
-      text: "This tool requires Authorization: Bearer <token> on the request.",
-    };
-  }
-
   return tool.handler(input, context);
 }
 
@@ -154,7 +148,7 @@ async function handleJsonRpc(
   request: Request,
   rpc: JsonRpcRequest,
   context: ToolContext,
-  toolList: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>,
+  toolList: ToolEntry[],
   toolMap: Map<string, ToolDefinition>,
 ): Promise<JsonRpcResponse> {
   const id = rpc.id ?? null;
@@ -299,7 +293,7 @@ async function handleJsonRpc(
 }
 
 export function createMcpHandler(config: RuntimeConfig) {
-  const { toolList, toolMap } = createToolRegistry(config);
+  const { toolList, toolMap } = createToolRegistry();
 
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -309,23 +303,7 @@ export function createMcpHandler(config: RuntimeConfig) {
         return new Response(null, { status: 405, headers: { Allow: "GET" } });
       }
 
-      const tools: Array<{ name: string; desc: string }> = [
-        { name: "search", desc: "Aggregated search for subjects, persons, and characters." },
-        { name: "get_subject", desc: "Subject details with expandable includes (persons, characters, relations, episodes)." },
-        { name: "get_user_profile", desc: "User profile only." },
-        { name: "get_user_collections", desc: "User collection snapshot with page_size as a 20-50 sliding range or all, plus offset, subject_type/collection_type/subject_id filters." },
-        { name: "get_calendar", desc: "Weekly broadcast schedule." },
-        { name: "update_collection", desc: "Write entry for subject/person/character/episode collection updates." },
-        { name: "browse_subjects", desc: "Browse the subject catalog by type with cat/year/month/sort filters." },
-        { name: "get_collections", desc: "Person/character collection lists and individual lookups." },
-        { name: "get_episode", desc: "Episode details, single/collection list episode collection status." },
-        { name: "get_image", desc: "Image URL redirects for subject/person/character/user." },
-        { name: "get_person", desc: "Person details plus related works and characters." },
-        { name: "get_character", desc: "Character details plus appearances and voice actors." },
-        { name: "manage_index", desc: "Index (directory) CRUD and collection management (requires BANGUMI_ENABLE_INDEX_TOOLS)." },
-      ];
-
-      const toolRows = tools.map((t) => `<tr><td class=\"name\">${t.name}</td><td>${t.desc}</td></tr>`).join("");
+      const toolRows = toolList.map((tool) => `<tr><td class="name">${tool.name}</td><td>${tool.description}</td></tr>`).join("");
 
       const html = `<!DOCTYPE html>
 <html lang="en">
@@ -354,7 +332,7 @@ export function createMcpHandler(config: RuntimeConfig) {
   <strong>Source:</strong> <a href="https://github.com/tokisaki-galaxy/bangumiMCP-ts">github.com/tokisaki-galaxy/bangumiMCP-ts</a><br>
   <strong>Inspired by:</strong> <a href="https://github.com/Ukenn2112/BangumiMCP">Ukenn2112/BangumiMCP</a>
 </p>
-<h2>Tools (${tools.length})</h2>
+<h2>Tools (${toolList.length})</h2>
 <table>${toolRows}</table>
 <p class="footer">${config.workerName} v${config.workerVersion}</p>
 </body>
